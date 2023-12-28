@@ -57,28 +57,47 @@ app.post("/register", async (req, res) => {
 // Login
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-
   try {
-    const user = await UserModel.findOne({ username });
+    const userDoc = await UserModel.findOne({ username });
 
-    if (user) {
-      const passwordMatch = bcrypt.compareSync(password, user.password);
+    if (userDoc) {
+      const passOk = bcrypt.compareSync(password, userDoc.password);
 
-      if (passwordMatch) {
-        // Attach token to response
-        attachTokenToResponse(res, user);
-
-        res.status(200).json({ message: "Login successful", user });
+      if (passOk) {
+        // logged in
+        jwt.sign({ username, id: userDoc._id }, secret, {}, (err, token) => {
+          if (err) throw err;
+          res.cookie("token", token).json({
+            id: userDoc._id,
+            username,
+          });
+        });
       } else {
-        res.status(401).json({ error: "Invalid credentials" });
+        res.status(400).json("Wrong credentials");
       }
     } else {
-      res.status(401).json({ error: "Invalid credentials" });
+      res.status(400).json("User not found");
     }
   } catch (error) {
     console.error("Error during login:", error.message);
     res.status(500).json({ error: "Error during login" });
   }
+});
+// Profile
+app.get("/profile", async (req, res) => {
+  try {
+    const { token } = req.cookies;
+    const decodedInfo = jwt.verify(token, secret);
+
+    res.json(decodedInfo);
+  } catch (error) {
+    console.error("Error during profile verification:", error);
+    res.status(401).json({ error: "Unauthorized" });
+  }
+});
+// Logout
+app.post("/logout", (req, res) => {
+  res.cookie("token", "", { maxAge: 0 }).json("ok");
 });
 
 // Database
